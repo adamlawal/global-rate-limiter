@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Rate Limiter Usage</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main>
+      <header>
+        <div><p class="eyebrow">GLOBAL RATE LIMITER</p><h1>Usage dashboard</h1></div>
+        <p id="status" aria-live="polite">Loading analytics…</p>
+      </header>
+      <form id="filters">
+        <label>Client ID <input id="clientId" name="clientId" placeholder="All clients"></label>
+        <label>Period <select id="period"><option value="10">Last 10 days</option><option value="15">Last 15 days</option><option value="30" selected>Last 30 days</option></select></label>
+        <label>Granularity <select id="bucket"><option value="86400000">Daily</option><option value="3600000">Hourly</option><option value="900000">15 minutes</option></select></label>
+        <button type="submit">Apply filters</button>
+      </form>
+      <section class="metrics" aria-label="Usage summary">
+        <article><span>Approved requests</span><strong id="requests">—</strong></article>
+        <article><span>Average decision time</span><strong id="latency">—</strong></article>
+        <article><span>Data range</span><strong id="range">—</strong></article>
+      </section>
+      <section class="chart-card" aria-labelledby="chart-title">
+        <div><h2 id="chart-title">Approved requests over time</h2><p>Refreshes every 15 seconds.</p></div>
+        <svg id="chart" viewBox="0 0 1000 280" role="img" aria-label="Approved requests trend"><text x="500" y="140" text-anchor="middle">No usage data yet</text></svg>
+      </section>
+    </main>
+    <script src="/dashboard.js"></script>
+  </body>
+</html>

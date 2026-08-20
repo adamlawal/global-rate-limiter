@@ -1,0 +1,46 @@
+services:
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes", "--appendfsync", "everysec"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  app:
+    build: .
+    environment:
+      PORT: "8080"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      # Per-client requests per minute. Empty uses the application defaults;
+      # override with CLIENT_LIMITS_JSON in production.
+      CLIENT_LIMITS_JSON: ${CLIENT_LIMITS_JSON:-}
+      ANALYTICS_STREAM_MAXLEN: "100000"
+    depends_on:
+      redis:
+        condition: service_healthy
+    expose:
+      - "8080"
+    restart: unless-stopped
+    # Docker Compose honors this in current releases. Explicit scaling also works:
+    # docker compose up --build --scale app=3
+    deploy:
+      replicas: 2
+
+  gateway:
+    image: nginx:1.27-alpine
+    depends_on:
+      - app
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+
+volumes:
+  redis-data:
