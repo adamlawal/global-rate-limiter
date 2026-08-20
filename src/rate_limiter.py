@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import time
+import threading
 from typing import Any, Protocol
+
+from .redis_client import RedisCommandError
 
 
 FIXED_WINDOW_LUA = """
@@ -30,16 +33,44 @@ class RateStore(Protocol):
 class RedisRateStore:
     def __init__(self, redis: Any) -> None:
         self.redis = redis
+        self._script_sha: str | None = None
+        self._script_lock = threading.Lock()
+
+    def _ensure_script_sha(self) -> str:
+        existing = self._script_sha
+        if existing is not None:
+            return existing
+        with self._script_lock:
+            if self._script_sha is None:
+                self._script_sha = str(self.redis.command("SCRIPT", "LOAD", FIXED_WINDOW_LUA))
+            return self._script_sha
 
     def consume(self, client_id: str, limit: int, window_ms: int) -> dict[str, int | bool]:
-        response = self.redis.command(
-            "EVAL",
-            FIXED_WINDOW_LUA,
-            1,
-            f"rate-limiter:window:{{{client_id}}}:",
-            window_ms,
-            limit,
-        )
+        key_prefix = f"rate-limiter:window:{{{client_id}}}:"
+        script_sha = self._ensure_script_sha()
+        try:
+            response = self.redis.command(
+                "EVALSHA",
+                script_sha,
+                1,
+                key_prefix,
+                window_ms,
+                limit,
+            )
+        except RedisCommandError as error:
+            if "NOSCRIPT" not in str(error):
+                raise
+            with self._script_lock:
+                self._script_sha = str(self.redis.command("SCRIPT", "LOAD", FIXED_WINDOW_LUA))
+                script_sha = self._script_sha
+            response = self.redis.command(
+                "EVALSHA",
+                script_sha,
+                1,
+                key_prefix,
+                window_ms,
+                limit,
+            )
         allowed, count, window_start, retry_after_ms = response
         return {
             "allowed": bool(allowed),
@@ -56,24 +87,30 @@ class RateLimiter:
         self.now = now
 
     def check(self, client_id: str, limit: int) -> dict[str, Any]:
-        started_at = time.perf_counter()
+        started_at_ns = time.perf_counter_ns()
         try:
             decision = self.store.consume(client_id, limit, self.window_ms)
+            count = int(decision["count"])
+            decision_ms = (time.perf_counter_ns() - started_at_ns) / 1_000_000
             return {
-                **decision,
+                "allowed": bool(decision["allowed"]),
+                "count": count,
+                "window_start": int(decision["window_start"]),
+                "retry_after_ms": int(decision["retry_after_ms"]),
                 "limit": limit,
-                "remaining": max(0, limit - int(decision["count"])),
-                "decision_ms": (time.perf_counter() - started_at) * 1_000,
+                "remaining": max(0, limit - count),
+                "decision_ms": decision_ms,
                 "degraded": False,
             }
         except Exception as error:  # Fail open when Redis is unavailable.
+            decision_ms = (time.perf_counter_ns() - started_at_ns) / 1_000_000
             return {
                 "allowed": True,
                 "count": None,
                 "limit": limit,
                 "remaining": None,
                 "retry_after_ms": 0,
-                "decision_ms": (time.perf_counter() - started_at) * 1_000,
+                "decision_ms": decision_ms,
                 "degraded": True,
                 "reason": "rate-limit-store-unavailable",
                 "error": error,
