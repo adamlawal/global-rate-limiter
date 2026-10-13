@@ -87,6 +87,21 @@ processes, and assert exactly 100 approvals with no degraded decisions. They
 also verify that a Redis outage is reported and that the client recovers after
 Redis restarts. GitHub Actions runs the full suite with Redis installed.
 
+## Local real-Redis benchmark
+
+```bash
+python3 -m benchmarks.redis_multiprocess --checks-per-process 1000
+```
+
+The benchmark starts a disposable Redis instance, then makes 6,000 decisions
+for one client from six Python processes with 20 threads each. Two runs on an
+arm64 Mac (Python 3.11.15, local Redis, no AOF) admitted exactly 100 requests,
+with no degraded decisions, and measured 12.0k–15.5k checks/s including
+process startup. Client-side p50 was 2.0–2.6 ms; p95 was 7.5–16.7 ms and p99
+was 10.7–121.9 ms, showing substantial tail variation. These are local
+synthetic measurements, not a production SLO or a guarantee during Redis
+outage. Set a service target only after testing the deployed topology.
+
 ## Architecture and design decisions
 
 The rendered submission diagram is [`docs/architecture.png`](docs/architecture.png); the editable source is [`docs/architecture.svg`](docs/architecture.svg).
