@@ -13,6 +13,8 @@ A small, production-oriented solution for globally enforcing per-client limits a
 - Non-blocking approval logging to Redis Streams, with a bounded local retry queue. Analytics/billing does not sit on the rate-decision path.
 - Dashboard at `/`, with client filtering, 10/15/30 day filters, average decision time, and daily/hourly/15-minute trend graphs.
 - Unit, concurrent race-condition, and lightweight performance tests.
+- Real-Redis integration tests that run 600 checks from six independent app
+  processes, plus an outage/recovery check.
 - Docker Compose starts Redis, two app replicas, and the gateway with one command.
 
 ## Run it
@@ -78,6 +80,12 @@ python3 -m unittest test.test_load_performance -v
 ```
 
 The race test submits 500 simultaneous requests against a limit of 100 and verifies exactly 100 pass. In Redis, that same guarantee comes from the single `EVAL` script: no read/modify/write race exists between replicas. The load test reports p95 in-process decision latency; verify end-to-end capacity with your expected Redis and network topology before setting an SLO.
+
+The integration tests require `redis-server` on `PATH`. They launch an
+isolated instance, submit 600 checks for one client from six separate
+processes, and assert exactly 100 approvals with no degraded decisions. They
+also verify that a Redis outage is reported and that the client recovers after
+Redis restarts. GitHub Actions runs the full suite with Redis installed.
 
 ## Architecture and design decisions
 
