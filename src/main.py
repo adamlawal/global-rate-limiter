@@ -15,11 +15,15 @@ from .redis_client import RedisClient
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
     config = read_config()
     redis = RedisClient(config.redis_host, config.redis_port, config.request_timeout_ms)
     limiter = RateLimiter(RedisRateStore(redis), config.window_ms)
-    analytics = AnalyticsWriter(redis, config.analytics_stream, config.analytics_stream_max_len)
+    analytics = AnalyticsWriter(
+        redis, config.analytics_stream, config.analytics_stream_max_len
+    )
     public_dir = Path(__file__).resolve().parent.parent / "public"
     server = RateLimitHTTPServer(
         ("", config.port), config, limiter, analytics, redis, public_dir

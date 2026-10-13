@@ -29,8 +29,17 @@ def _free_port() -> int:
 def _start_redis(port: int, data_dir: str) -> subprocess.Popen[bytes]:
     process = subprocess.Popen(
         [
-            "redis-server", "--bind", "127.0.0.1", "--port", str(port),
-            "--save", "", "--appendonly", "no", "--dir", data_dir,
+            "redis-server",
+            "--bind",
+            "127.0.0.1",
+            "--port",
+            str(port),
+            "--save",
+            "",
+            "--appendonly",
+            "no",
+            "--dir",
+            data_dir,
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -57,9 +66,13 @@ def _run_checks(port: int, client_id: str, count: int) -> tuple[int, int]:
     limiter = RateLimiter(RedisRateStore(redis), window_ms=600_000)
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as pool:
-            decisions = list(pool.map(lambda _: limiter.check(client_id, 100), range(count)))
-        return (sum(bool(item["allowed"]) for item in decisions),
-                sum(bool(item["degraded"]) for item in decisions))
+            decisions = list(
+                pool.map(lambda _: limiter.check(client_id, 100), range(count))
+            )
+        return (
+            sum(bool(item["allowed"]) for item in decisions),
+            sum(bool(item["degraded"]) for item in decisions),
+        )
     finally:
         redis.close()
 
@@ -76,12 +89,14 @@ class RedisIntegrationTests(unittest.TestCase):
                 with concurrent.futures.ProcessPoolExecutor(
                     max_workers=6, mp_context=context
                 ) as pool:
-                    results = list(pool.map(
-                        _run_checks,
-                        [port] * 6,
-                        [client_id] * 6,
-                        [100] * 6,
-                    ))
+                    results = list(
+                        pool.map(
+                            _run_checks,
+                            [port] * 6,
+                            [client_id] * 6,
+                            [100] * 6,
+                        )
+                    )
                 self.assertEqual(sum(allowed for allowed, _ in results), 100)
                 self.assertEqual(sum(degraded for _, degraded in results), 0)
             finally:

@@ -15,7 +15,9 @@ class MemoryRateStore:
         self.windows: dict[tuple[str, int], int] = {}
         self._locks = [threading.Lock() for _ in range(self._SHARD_COUNT)]
 
-    def consume(self, client_id: str, limit: int, window_ms: int) -> dict[str, int | bool]:
+    def consume(
+        self, client_id: str, limit: int, window_ms: int
+    ) -> dict[str, int | bool]:
         current_ms = self.now_ms()
         window_start = current_ms - (current_ms % window_ms)
         key = (client_id, window_start)

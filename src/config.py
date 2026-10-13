@@ -8,7 +8,6 @@ import os
 from dataclasses import dataclass
 from typing import Mapping
 
-
 DEFAULT_LIMITS = {"client-a": 100, "client-b": 5_000, "default": 60}
 
 
