@@ -31,7 +31,9 @@ def worker(port: int, client_id: str, count: int, threads: int, limit: int):
     limiter = RateLimiter(RedisRateStore(client), window_ms=600_000)
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as pool:
-            decisions = list(pool.map(lambda _: limiter.check(client_id, limit), range(count)))
+            decisions = list(
+                pool.map(lambda _: limiter.check(client_id, limit), range(count))
+            )
         return (
             [float(decision["decision_ms"]) for decision in decisions],
             sum(bool(decision["allowed"]) for decision in decisions),
@@ -53,16 +55,36 @@ def main() -> None:
     parser.add_argument("--threads-per-process", type=int, default=20)
     parser.add_argument("--limit", type=int, default=100)
     args = parser.parse_args()
-    if min(args.processes, args.checks_per_process, args.threads_per_process, args.limit) <= 0:
+    if (
+        min(
+            args.processes,
+            args.checks_per_process,
+            args.threads_per_process,
+            args.limit,
+        )
+        <= 0
+    ):
         parser.error("all numeric options must be positive")
     if not shutil.which("redis-server"):
         parser.error("redis-server is required on PATH")
     port = free_port()
     with tempfile.TemporaryDirectory() as data_dir:
         server = subprocess.Popen(
-            ["redis-server", "--bind", "127.0.0.1", "--port", str(port),
-             "--save", "", "--appendonly", "no", "--dir", data_dir],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            [
+                "redis-server",
+                "--bind",
+                "127.0.0.1",
+                "--port",
+                str(port),
+                "--save",
+                "",
+                "--appendonly",
+                "no",
+                "--dir",
+                data_dir,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
         try:
             for _ in range(100):
@@ -82,24 +104,34 @@ def main() -> None:
             with concurrent.futures.ProcessPoolExecutor(
                 max_workers=args.processes, mp_context=context
             ) as pool:
-                results = list(pool.map(
-                    worker, [port] * args.processes, [client_id] * args.processes,
-                    [args.checks_per_process] * args.processes,
-                    [args.threads_per_process] * args.processes,
-                    [args.limit] * args.processes,
-                ))
+                results = list(
+                    pool.map(
+                        worker,
+                        [port] * args.processes,
+                        [client_id] * args.processes,
+                        [args.checks_per_process] * args.processes,
+                        [args.threads_per_process] * args.processes,
+                        [args.limit] * args.processes,
+                    )
+                )
             elapsed = time.perf_counter() - started
             latencies = sorted(value for values, _, _ in results for value in values)
             total = len(latencies)
             allowed = sum(item[1] for item in results)
             degraded = sum(item[2] for item in results)
             print(f"platform={platform.platform()} python={platform.python_version()}")
-            print(f"processes={args.processes} threads/process={args.threads_per_process} "
-                  f"checks={total} limit={args.limit} approved={allowed} degraded={degraded}")
-            print(f"wall_seconds={elapsed:.3f} throughput_checks_per_s={total / elapsed:.1f}")
-            print(f"client_decision_ms p50={percentile(latencies, 0.50):.3f} "
-                  f"p95={percentile(latencies, 0.95):.3f} "
-                  f"p99={percentile(latencies, 0.99):.3f}")
+            print(
+                f"processes={args.processes} threads/process={args.threads_per_process} "
+                f"checks={total} limit={args.limit} approved={allowed} degraded={degraded}"
+            )
+            print(
+                f"wall_seconds={elapsed:.3f} throughput_checks_per_s={total / elapsed:.1f}"
+            )
+            print(
+                f"client_decision_ms p50={percentile(latencies, 0.50):.3f} "
+                f"p95={percentile(latencies, 0.95):.3f} "
+                f"p99={percentile(latencies, 0.99):.3f}"
+            )
             if allowed != args.limit or degraded:
                 raise RuntimeError("quota or Redis availability invariant failed")
         finally:

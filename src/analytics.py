@@ -93,7 +93,9 @@ def load_usage(
     for row in rows:
         fields = dict(zip(row[1][::2], row[1][1::2]))
         timestamp = int(fields["timestamp"])
-        if (client_id and fields.get("clientId") != client_id) or not start <= timestamp <= end:
+        if (
+            client_id and fields.get("clientId") != client_id
+        ) or not start <= timestamp <= end:
             continue
         total += 1
         total_decision_ms += float(fields.get("decisionMs", 0))
@@ -101,7 +103,12 @@ def load_usage(
         buckets[bucket_start] = buckets.get(bucket_start, 0) + 1
 
     return {
-        "filters": {"clientId": client_id, "from": start, "to": end, "bucketMs": bucket_ms},
+        "filters": {
+            "clientId": client_id,
+            "from": start,
+            "to": end,
+            "bucketMs": bucket_ms,
+        },
         "approvedRequests": total,
         "averageDecisionMs": round(total_decision_ms / total, 3) if total else 0,
         "series": [

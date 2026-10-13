@@ -15,8 +15,10 @@ from urllib.parse import parse_qs, urlparse
 from .analytics import load_usage
 from .config import Config, limit_for
 
-
-JSON_HEADERS = {"Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store"}
+JSON_HEADERS = {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+}
 CLIENT_ID_RE = re.compile(r"^[a-zA-Z0-9._-]{1,128}$")
 ALLOWED_BUCKETS = {60_000, 900_000, 3_600_000, 86_400_000}
 CONTENT_TYPES = {
@@ -55,14 +57,19 @@ class RateLimitRequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         try:
             if parsed.path == "/health":
-                self._send_json(HTTPStatus.OK, {"status": "ok", "rateLimitMode": "redis-with-fail-open"})
+                self._send_json(
+                    HTTPStatus.OK,
+                    {"status": "ok", "rateLimitMode": "redis-with-fail-open"},
+                )
             elif parsed.path == "/api/usage":
                 self._handle_usage(parse_qs(parsed.query, keep_blank_values=True))
             else:
                 self._serve_static(parsed.path)
         except Exception:
             logging.exception("Request failed")
-            self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "internal-server-error"})
+            self._send_json(
+                HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "internal-server-error"}
+            )
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
@@ -75,7 +82,9 @@ class RateLimitRequestHandler(BaseHTTPRequestHandler):
             self._send_json(HTTPStatus.BAD_REQUEST, {"error": str(error)})
         except Exception:
             logging.exception("Request failed")
-            self._send_json(HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "internal-server-error"})
+            self._send_json(
+                HTTPStatus.INTERNAL_SERVER_ERROR, {"error": "internal-server-error"}
+            )
 
     def _handle_rate_check(self) -> None:
         body = self._read_json()
@@ -87,15 +96,21 @@ class RateLimitRequestHandler(BaseHTTPRequestHandler):
         if not isinstance(endpoint, str):
             endpoint = self.headers.get("X-Target-Api", "unspecified")
         endpoint = endpoint[:200]
-        result = self.server.limiter.check(client_id, limit_for(client_id, self.server.config))
+        result = self.server.limiter.check(
+            client_id, limit_for(client_id, self.server.config)
+        )
 
         headers = {
             "X-RateLimit-Limit": str(result["limit"]),
-            "X-RateLimit-Remaining": str(result["remaining"] if result["remaining"] is not None else "unknown"),
+            "X-RateLimit-Remaining": str(
+                result["remaining"] if result["remaining"] is not None else "unknown"
+            ),
             "X-RateLimit-Reset": str(int(result["retry_after_ms"])),
         }
         if not result["allowed"]:
-            headers["Retry-After"] = str(max(1, -(-int(result["retry_after_ms"]) // 1_000)))
+            headers["Retry-After"] = str(
+                max(1, -(-int(result["retry_after_ms"]) // 1_000))
+            )
         if result["allowed"]:
             self.server.analytics.enqueue(
                 {
@@ -115,8 +130,14 @@ class RateLimitRequestHandler(BaseHTTPRequestHandler):
             "degraded": result["degraded"],
         }
         if result["degraded"]:
-            response["warning"] = "Rate-limit store unavailable; request allowed by fail-safe policy."
-        self._send_json(HTTPStatus.OK if result["allowed"] else HTTPStatus.TOO_MANY_REQUESTS, response, headers)
+            response["warning"] = (
+                "Rate-limit store unavailable; request allowed by fail-safe policy."
+            )
+        self._send_json(
+            HTTPStatus.OK if result["allowed"] else HTTPStatus.TOO_MANY_REQUESTS,
+            response,
+            headers,
+        )
 
     def _handle_usage(self, query: dict[str, list[str]]) -> None:
         bucket_ms = _query_int(query, "bucketMs")
@@ -132,7 +153,10 @@ class RateLimitRequestHandler(BaseHTTPRequestHandler):
                 bucket_ms=bucket_ms,
             )
         except Exception:
-            self._send_json(HTTPStatus.SERVICE_UNAVAILABLE, {"error": "analytics-temporarily-unavailable"})
+            self._send_json(
+                HTTPStatus.SERVICE_UNAVAILABLE,
+                {"error": "analytics-temporarily-unavailable"},
+            )
             return
         self._send_json(HTTPStatus.OK, usage)
 
@@ -166,13 +190,21 @@ class RateLimitRequestHandler(BaseHTTPRequestHandler):
             return
         content = file_path.read_bytes()
         self.send_response(HTTPStatus.OK)
-        self.send_header("Content-Type", CONTENT_TYPES.get(file_path.suffix, "application/octet-stream"))
+        self.send_header(
+            "Content-Type",
+            CONTENT_TYPES.get(file_path.suffix, "application/octet-stream"),
+        )
         self.send_header("Cache-Control", "public, max-age=300")
         self.send_header("Content-Length", str(len(content)))
         self.end_headers()
         self.wfile.write(content)
 
-    def _send_json(self, status: HTTPStatus, body: dict[str, Any], headers: dict[str, str] | None = None) -> None:
+    def _send_json(
+        self,
+        status: HTTPStatus,
+        body: dict[str, Any],
+        headers: dict[str, str] | None = None,
+    ) -> None:
         content = json.dumps(body, separators=(",", ":")).encode("utf-8")
         self.send_response(status)
         for key, value in JSON_HEADERS.items():

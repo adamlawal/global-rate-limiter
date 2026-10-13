@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-import time
 import threading
+import time
 from typing import Any, Protocol
 
 from .redis_client import RedisCommandError
-
 
 FIXED_WINDOW_LUA = """
 local redisTime = redis.call('TIME')
@@ -42,10 +41,14 @@ class RedisRateStore:
             return existing
         with self._script_lock:
             if self._script_sha is None:
-                self._script_sha = str(self.redis.command("SCRIPT", "LOAD", FIXED_WINDOW_LUA))
+                self._script_sha = str(
+                    self.redis.command("SCRIPT", "LOAD", FIXED_WINDOW_LUA)
+                )
             return self._script_sha
 
-    def consume(self, client_id: str, limit: int, window_ms: int) -> dict[str, int | bool]:
+    def consume(
+        self, client_id: str, limit: int, window_ms: int
+    ) -> dict[str, int | bool]:
         key_prefix = f"rate-limiter:window:{{{client_id}}}:"
         script_sha = self._ensure_script_sha()
         try:
@@ -61,7 +64,9 @@ class RedisRateStore:
             if "NOSCRIPT" not in str(error):
                 raise
             with self._script_lock:
-                self._script_sha = str(self.redis.command("SCRIPT", "LOAD", FIXED_WINDOW_LUA))
+                self._script_sha = str(
+                    self.redis.command("SCRIPT", "LOAD", FIXED_WINDOW_LUA)
+                )
                 script_sha = self._script_sha
             response = self.redis.command(
                 "EVALSHA",
